@@ -1,4 +1,4 @@
-﻿/*
+/*
 
     This script was adapted from the free Unity Asset Store asset "Bezier Curve Editor".
     The original asset can be found at https://assetstore.unity.com/packages/tools/11278

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <Import Project="../UserProperties.props" Condition="Exists('../UserProperties.props')" />
     <PropertyGroup>
         <TargetFramework>netstandard2.0</TargetFramework>
@@ -31,24 +31,32 @@
         <Reference Include="UnityEngine.JSONSerializeModule" />
         <Reference Include="UnityEngine.PhysicsModule" />
         <Reference Include="UnityEngine.TerrainModule" />
-    </ItemGroup>
-
+    </ItemGroup> 
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-        <!-- Build the runtime version, without any UnityEditor references. This is super sketchy, but I couldn't find a better way to do it. -->
+         <!--Build the runtime version, without any UnityEditor references. This is super sketchy, but I couldn't find a better way to do it.--> 
         <Exec Condition="'$(IsEditor)' == 'true'" Command="dotnet build -c $(Configuration) -p:IsEditor='false'" />
 
-        <!-- Copy to build folder -->
+         <!--Copy to build folder--> 
         <Copy Condition="'$(IsEditor)' == 'true'" SourceFiles="$(TargetPath)" DestinationFolder="../build/editor" />
         <Copy Condition="'$(IsEditor)' != 'true'" SourceFiles="$(TargetPath)" DestinationFolder="../build/runtime" />
 
-        <!-- Copy to package build and test map -->
+        <!--Copy to unity project file, for testing. If this is still here when I've released it, tell me-->
+        <!--<Copy Condition="'$(IsEditor)' != 'true'" SourceFiles="$(TargetPath)" DestinationFolder="D:\Documents\Unity\Projects\dvmap2\Assets\Mapify\Scripts" />-->
+
+        <!--<ItemGroup>
+            <FilesToDelete Include="D:\Documents\Unity\Projects\dvmap2\Assets\Mapify\Scripts\MapifyEditor.dll.meta"/>
+        </ItemGroup>
+        <Delete Files="@(FilesToDelete)"/>-->
+
+        <!--Copy to package build and test map
         <Copy Condition="'$(IsEditor)' == 'true'" SourceFiles="$(TargetPath);$(OutDir)BezierCurves.dll" DestinationFolder="$(PackageBuilderDir);" />
         <Copy Condition="'$(IsEditor)' == 'true' And Exists('$(TestMapDir)')" SourceFiles="$(TargetPath)" DestinationFolder="$(TestMapDir)" />
 
-        <!-- Copy to game install folder -->
+         Copy to game install folder 
         <Exec Condition="Exists('$(DvInstallDir)') And '$(IsEditor)' != 'true'" Command="pwsh  -Command &quot;(../package.ps1 -NoArchive -OutputDirectory '$(DvInstallDir)/Mods')&quot;" />
 
-        <!-- Update package version number -->
+         Update package version number 
         <Exec Condition="'$(IsEditor)' == 'true'" Command="pwsh -Command &quot;((Get-Content -Raw -Path '../info.json' | ConvertFrom-Json).Version | Set-Content -NoNewline -Encoding utf8NoBOM -Path '../PackageBuilder/Assets/Mapify/version.txt')&quot;" />
+    -->
     </Target>
 </Project>
