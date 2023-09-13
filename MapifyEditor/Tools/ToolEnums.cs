@@ -23,10 +23,18 @@ namespace Mapify.Editor.Tools
         {
             None,
             Track,
-            BezierPoint
+            BezierPoint,
+            Switch,
+            Turntable
         }
 
         public enum CreationMode
+        {
+            Freeform,
+            Piece
+        }
+
+        public enum TrackPiece
         {
             Straight,
             Curve,
@@ -36,7 +44,7 @@ namespace Mapify.Editor.Tools
             Special
         }
 
-        public enum SpecialTrack
+        public enum SpecialTrackPiece
         {
             Buffer,
             SwitchCurve,
