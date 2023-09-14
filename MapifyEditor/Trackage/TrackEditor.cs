@@ -2,6 +2,7 @@
 using Mapify.Editor.BezierCurves;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
@@ -17,6 +18,7 @@ namespace Mapify.Editor {
 
         private float snappingOffsetHeight = 0.2f;
         private float treeClearRadius = 5;
+        private int clearSubdivisions = 10;
 
         private void OnEnable() {
             tracks = target ? new[] { (Track) target } : targets.Cast<Track>().ToArray();
@@ -55,51 +57,47 @@ namespace Mapify.Editor {
 
             // This should be later updated to remove all objects along tracks, not just trees, but I don't feel like bothering with that right now.
             if(GUILayout.Button("Remove Trees Along Track")) {
-                foreach(Transform child in trackTransform.transform) {
-                    Terrain terrain = GetTerrainBelowPos(child.position);
+                Vector3[] points = GetSubdividedPointsOnCurve(trackTransform.GetComponent<BezierCurve>(), clearSubdivisions);
 
-                    int terrainSize = 0;
+                Terrain[] terrainsBelowPoints = new Terrain[points.Length];
+
+                for(int i = 0; i < points.Length; i++) {
+                    Terrain terrain = GetTerrainBelowPos(points[i]);
+
                     // This check if the terrain is square isn't needed, but I thought it might be nice to put in here for now. I'll probably end up removing it later.
-                    float terX = terrain.terrainData.size.x;
-                    float terZ = terrain.terrainData.size.z;
-                    if(terX == terZ) {
-                        terrainSize = (int) terX;
-                    } else {
-                        Debug.LogError("Terrain size is not square! " + terX + " by " + terZ);
-                        return;
-                    }
 
+                    terrainsBelowPoints[i] = terrain;
                     var treeInstancesList = new List<TreeInstance>(terrain.terrainData.treeInstances);
 
-                    Vector3[] points = GetSubdividedPointsOnCurve(trackTransform.GetComponent<BezierCurve>(), 4);
+                    for(int j = 0; j < treeInstancesList.Count; j++) {
+                        float terrainSize = terrain.terrainData.size.x;
+                        Vector3 pos = (treeInstancesList[j].position * terrainSize) + terrain.transform.position + new Vector3(0, 40, 0);
+                        Vector3 posSameY = new Vector3(pos.x, points[i].y, pos.z);
 
-                    for(int i = 0; i < treeInstancesList.Count; i++) {
-                        Vector3 pos = (treeInstancesList[i].position * terrainSize) + terrain.transform.position + new Vector3(0, 40, 0);
+                        if(j < points.Length - 1) {
+                            Debug.DrawLine(points[j], points[j + 1], Color.magenta, 20);
+                        }
 
-                        for(int j = 0; j < points.Length; j++) {
-                            Vector3 posSameY = new Vector3(pos.x, points[j].y, pos.z);
+                        Debug.DrawRay(posSameY, Vector3.down * 30, Color.red, 20);
 
-                            if(j < points.Length - 1) {
-                                Debug.DrawLine(points[j], points[j + 1], Color.magenta, 20);
-                            }
+                        if(Vector3.Distance(points[i], posSameY) <= treeClearRadius) {
+                            Debug.Log("h");
+                            //Debug.DrawRay(posSameY, Vector3.down * 30, Color.red, 20);
+                            //Debug.DrawRay(points[j], Vector3.down * 30, Color.red, 20);
 
-                            Debug.DrawRay(points[j], Vector3.down * 30, Color.red, 20);
-                            Debug.Log(Vector3.Distance(points[j], posSameY));
-
-                            if(Vector3.Distance(points[j], posSameY) <= treeClearRadius) {
-
-                                // Removes the tree from the list
-                                treeInstancesList.RemoveAt(i);
-                            }
+                            // Removes the tree from the list
+                            treeInstancesList.RemoveAt(i);
+                            
                         }
                     }
 
                     terrain.terrainData.treeInstances = treeInstancesList.ToArray();
-
                 }
+
                 Debug.Log("Removed trees along track " + trackTransform.name);
             }
             treeClearRadius = EditorGUILayout.FloatField("Clear Radius", treeClearRadius);
+            clearSubdivisions = EditorGUILayout.IntField("Subdivisions", clearSubdivisions);
 
             GUILayout.Space(10);
 
@@ -113,6 +111,76 @@ namespace Mapify.Editor {
             //}
 
             GUILayout.Space(10);
+        }
+
+        public bool IsTerrainSquare(Terrain terrain) {
+            int terrainSize = 0;
+            float terX = terrain.terrainData.size.x;
+            float terZ = terrain.terrainData.size.z;
+            if(terX == terZ) {
+                terrainSize = (int) terX;
+                return true;
+            } else {
+                Debug.LogError("Terrain size is not square! " + terX + " by " + terZ);
+                return false;
+            }
+        }
+
+        public bool PointInRectangle(Vector2 A, Vector2 B, Vector2 C, Vector2 P) {
+            // Compute vectors        
+            Vector2 v0 = C - A;
+            Vector2 v1 = B - A;
+            Vector2 v2 = P - A;
+
+            // Compute dot products
+            float dot00 = Vector2.Dot(v0, v0);
+            float dot01 = Vector2.Dot(v0, v1);
+            float dot02 = Vector2.Dot(v0, v2);
+            float dot11 = Vector2.Dot(v1, v1);
+            float dot12 = Vector2.Dot(v1, v2);
+
+            // Compute barycentric coordinates
+            float invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+            float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+            float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+            // Check if point is in rectangle
+            if(u >= 0 && v >= 0 && u <= 1 && v <= 1) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        // This function allows for rotation of a bounding box and then checking if a point is in that box.
+        public bool IsInBoundingBox(float xO, float yO, float xW, float yW, float xH, float yH, /**/ float x, float y) {
+            float xU = xW - xO;
+            float yU = yW - yO;
+            float xV = xH - xO;
+            float yV = yH - yO;
+            float L = xU * yV - xV * yU;
+
+            if(L < 0) {
+                L = -L;
+                xU = -xU;
+                yV = -yV;
+            } else {
+                xV = -xV;
+                yU = -yU;
+            }
+
+            float u = (x - xO) * yV + (y - yO) * xV;
+
+            if(u < 0 || u > L) {
+                return false;
+            } else {
+                float v = (x - xO) * yU + (y - yO) * xU;
+                if(v < 0 || v > L) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
         }
 
         public Terrain GetTerrainBelowPos(Vector3 position) {
