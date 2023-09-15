@@ -3,6 +3,7 @@ using Mapify.Editor.BezierCurves;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
@@ -61,39 +62,62 @@ namespace Mapify.Editor {
 
                 Terrain[] terrainsBelowPoints = new Terrain[points.Length];
 
+                //Vector2 p1 = new Vector2(1, 1);
+                //Vector2 p2 = new Vector2(1, -1);
+                //Vector2 p3 = new Vector2(-1, -1);
+                //Vector2 p4 = new Vector2(-1, 1);
+                //Vector2 toCheck = new Vector2(0, 0);
+
+                //if(PointInRectangle(p1, p2, p3, p4, toCheck)) {
+                //    Debug.Log("THE POINT IS IN");
+                //} else {
+                //    Debug.Log("something's fucked");
+                //}
+
+                // For each point on the curve
                 for(int i = 0; i < points.Length; i++) {
                     Terrain terrain = GetTerrainBelowPos(points[i]);
-
-                    // This check if the terrain is square isn't needed, but I thought it might be nice to put in here for now. I'll probably end up removing it later.
 
                     terrainsBelowPoints[i] = terrain;
                     var treeInstancesList = new List<TreeInstance>(terrain.terrainData.treeInstances);
 
-                    for(int j = 0; j < treeInstancesList.Count; j++) {
-                        float terrainSize = terrain.terrainData.size.x;
-                        Vector3 pos = (treeInstancesList[j].position * terrainSize) + terrain.transform.position + new Vector3(0, 40, 0);
-                        Vector3 posSameY = new Vector3(pos.x, points[i].y, pos.z);
+                    if(i < points.Length - 1) {
+                        Vector2 lineVectorDirection = new Vector2(points[i].x - points[i + 1].x, points[i].z - points[i + 1].z).normalized;
+                        Vector3 perpendicularVector = new Vector3(Vector2.Perpendicular(lineVectorDirection).x, 0, Vector2.Perpendicular(lineVectorDirection).y);
 
-                        if(j < points.Length - 1) {
-                            Debug.DrawLine(points[j], points[j + 1], Color.magenta, 20);
-                        }
+                        Vector3 point1 = new Vector3(points[i].x, points[i].y, points[i].z) + perpendicularVector * treeClearRadius;
+                        Vector3 point2 = new Vector3(points[i].x, points[i].y, points[i].z) + perpendicularVector * -treeClearRadius;
+                        Vector3 point3 = new Vector3(points[i + 1].x, points[i + 1].y, points[i + 1].z) + perpendicularVector * treeClearRadius;
+                        Vector3 point4 = new Vector3(points[i + 1].x, points[i + 1].y, points[i + 1].z) + perpendicularVector * -treeClearRadius;
 
-                        Debug.DrawRay(posSameY, Vector3.down * 30, Color.red, 20);
+                        Vector2 point12D = new Vector2(point1.x, point1.z);
+                        Vector2 point22D = new Vector2(point2.x, point2.z);
+                        Vector2 point32D = new Vector2(point3.x, point3.z);
+                        Vector2 point42D = new Vector2(point4.x, point4.z);
 
-                        if(Vector3.Distance(points[i], posSameY) <= treeClearRadius) {
-                            Debug.Log("h");
-                            //Debug.DrawRay(posSameY, Vector3.down * 30, Color.red, 20);
-                            //Debug.DrawRay(points[j], Vector3.down * 30, Color.red, 20);
+                        // Front/Back
+                        //Debug.DrawLine(point1, point2, UnityEngine.Color.black, 2);
+                        //Debug.DrawLine(point3, point4, UnityEngine.Color.black, 2);
+                        // Sides
+                        //Debug.DrawLine(point1, point3, UnityEngine.Color.red, 2);
+                        //Debug.DrawLine(point4, point2, UnityEngine.Color.red, 2);
+                        //Debug.DrawLine(points[i], points[i + 1], UnityEngine.Color.magenta, 20);
 
-                            // Removes the tree from the list
-                            treeInstancesList.RemoveAt(i);
-                            
+                        // For Each Tree
+                        for(int j = 0; j < treeInstancesList.Count; j++) {
+                            float terrainSize = terrain.terrainData.size.x;
+                            Vector3 pos = (treeInstancesList[j].position * terrainSize) + terrain.transform.position + new Vector3(0, 40, 0);
+
+                            Vector2 pointToCheck = new Vector2(pos.x, pos.z);
+                            Vector3 posSameY = new Vector3(pointToCheck.x, 0, pointToCheck.y);
+
+                            if(PointInRectangle(point12D, point22D, point42D, point32D, pointToCheck)) {
+                                treeInstancesList.RemoveAt(j);
+                            }
                         }
                     }
-
                     terrain.terrainData.treeInstances = treeInstancesList.ToArray();
                 }
-
                 Debug.Log("Removed trees along track " + trackTransform.name);
             }
             treeClearRadius = EditorGUILayout.FloatField("Clear Radius", treeClearRadius);
@@ -113,6 +137,7 @@ namespace Mapify.Editor {
             GUILayout.Space(10);
         }
 
+        // This check if the terrain is square isn't needed, but I thought it might be nice to put in here for now. I'll probably end up removing it later.
         public bool IsTerrainSquare(Terrain terrain) {
             int terrainSize = 0;
             float terX = terrain.terrainData.size.x;
@@ -126,68 +151,32 @@ namespace Mapify.Editor {
             }
         }
 
-        public bool PointInRectangle(Vector2 A, Vector2 B, Vector2 C, Vector2 P) {
-            // Compute vectors        
-            Vector2 v0 = C - A;
-            Vector2 v1 = B - A;
-            Vector2 v2 = P - A;
+        bool PointInRectangle(Vector2 A, Vector2 B, Vector2 C, Vector2 D, Vector2 m) {
+            Vector2 AB = vect2d(A, B); float C1 = -1 * (AB.y * A.x + AB.x * A.y);
+            float D1 = (AB.y * m.x + AB.x * m.y) + C1;
+            Vector2 AD = vect2d(A, D); float C2 = -1 * (AD.y * A.x + AD.x * A.y);
+            float D2 = (AD.y * m.x + AD.x * m.y) + C2;
+            Vector2 BC = vect2d(B, C); float C3 = -1 * (BC.y * B.x + BC.x * B.y);
+            float D3 = (BC.y * m.x + BC.x * m.y) + C3;
+            Vector2 CD = vect2d(C, D); float C4 = -1 * (CD.y * C.x + CD.x * C.y);
+            float D4 = (CD.y * m.x + CD.x * m.y) + C4;
 
-            // Compute dot products
-            float dot00 = Vector2.Dot(v0, v0);
-            float dot01 = Vector2.Dot(v0, v1);
-            float dot02 = Vector2.Dot(v0, v2);
-            float dot11 = Vector2.Dot(v1, v1);
-            float dot12 = Vector2.Dot(v1, v2);
-
-            // Compute barycentric coordinates
-            float invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
-            float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
-            float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
-
-            // Check if point is in rectangle
-            if(u >= 0 && v >= 0 && u <= 1 && v <= 1) {
-                return true;
-            } else {
-                return false;
-            }
+            return 0 >= D1 && 0 >= D4 && 0 <= D2 && 0 >= D3;
         }
 
-        // This function allows for rotation of a bounding box and then checking if a point is in that box.
-        public bool IsInBoundingBox(float xO, float yO, float xW, float yW, float xH, float yH, /**/ float x, float y) {
-            float xU = xW - xO;
-            float yU = yW - yO;
-            float xV = xH - xO;
-            float yV = yH - yO;
-            float L = xU * yV - xV * yU;
-
-            if(L < 0) {
-                L = -L;
-                xU = -xU;
-                yV = -yV;
-            } else {
-                xV = -xV;
-                yU = -yU;
-            }
-
-            float u = (x - xO) * yV + (y - yO) * xV;
-
-            if(u < 0 || u > L) {
-                return false;
-            } else {
-                float v = (x - xO) * yU + (y - yO) * xU;
-                if(v < 0 || v > L) {
-                    return false;
-                } else {
-                    return true;
-                }
-            }
+        // This is a terrible, undescriptive name but it's what stackexchange named it :upside_down: I'll fix it later because I don't actually know what id does right now
+        Vector2 vect2d(Vector2 p1, Vector2 p2) {
+            Vector2 temp;
+            temp.x = (p2.x - p1.x);
+            temp.y = -1 * (p2.y - p1.y);
+            return temp;
         }
 
         public Terrain GetTerrainBelowPos(Vector3 position) {
             RaycastHit hit;
             Physics.Raycast(position, Vector3.down, out hit, Mathf.Infinity);
             if(hit.collider == null) {
-                Debug.LogError("No collider found below " + position + "! Move the points upward.");
+                Debug.LogError("Not all points found a collider below " + position + "! Move the points upward, and make sure none of them are intersecting with the ground.");
                 return null;
             }
             Terrain terrainFound = hit.collider.transform.GetComponent<Terrain>();
